@@ -26,6 +26,22 @@ public class WebConfig {
                         .allowCredentials(true)
                         .maxAge(3600);
             }
+
+            @Override
+            public void addViewControllers(ViewControllerRegistry registry) {
+                // SPA 라우팅: API 경로가 아닌 모든 경로를 index.html로 포워딩
+                registry.addViewController("/{spring:[^\\.]*}")
+                        .setViewName("forward:/index.html");
+                registry.addViewController("/**/{spring:[^\\.]*}")
+                        .setViewName("forward:/index.html");
+            }
+
+            @Override
+            public void addResourceHandlers(ResourceHandlerRegistry registry) {
+                // 정적 리소스 처리
+                registry.addResourceHandler("/**")
+                        .addResourceLocations("classpath:/static/");
+            }
         };
     }
 }

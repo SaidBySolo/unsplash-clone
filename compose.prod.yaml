@@ -47,7 +47,7 @@ services:
 
   seaweedfs-s3:
     image: chrislusf/seaweedfs:latest
-    command: server -s3
+    command: server -s3 -s3.ip.bind=0.0.0.0
     ports:
       - '8333:8333'
     volumes:
@@ -55,9 +55,34 @@ services:
     environment:
       - AWS_ACCESS_KEY_ID=${S3_ACCESS_KEY:-admin}
       - AWS_SECRET_ACCESS_KEY=${S3_SECRET_KEY}
+    networks:
+      - unsplash-network
+    labels:
+      - "traefik.enable=true"
+      # HTTPS router
+      - "traefik.http.routers.s3.rule=Host(`s3.unsplash.example.com`)"
+      - "traefik.http.routers.s3.entrypoints=websecure"
+      - "traefik.http.routers.s3.tls.certresolver=cfresolver"
+      - "traefik.http.services.s3.loadbalancer.server.port=8333"
+
+      # HTTP → HTTPS
+      - "traefik.http.routers.s3-http.rule=Host(`s3.unsplash.example.com`)"
+      - "traefik.http.routers.s3-http.entrypoints=web"
+      - "traefik.http.routers.s3-http.middlewares=https-redirect"
+
+      # Middlewares
+      - "traefik.http.middlewares.https-redirect.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.redirect-to-root.redirectregex.regex=^https?://www\\.(.+)"
+      - "traefik.http.middlewares.redirect-to-root.redirectregex.replacement=https://$1"
+      - "traefik.http.middlewares.redirect-to-root.redirectregex.permanent=true"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:8333/status"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   app:
-    image: ghcr.io/SaidBySolo/unsplash-clone:latest
+    image: ghcr.io/saidbysolo/unsplash-clone:latest
     ports:
       - "8080:8080"
     environment:
@@ -80,6 +105,7 @@ services:
       - unsplash-network
     restart: unless-stopped
     labels:
+      - "traefik.enable=true"
       # HTTPS router
       - "traefik.http.routers.unsplash.rule=Host(`unsplash.example.com`)"
       - "traefik.http.routers.unsplash.entrypoints=websecure"

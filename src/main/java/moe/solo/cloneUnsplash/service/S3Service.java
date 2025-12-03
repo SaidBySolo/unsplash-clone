@@ -104,8 +104,13 @@ public class S3Service {
      */
     public String getFileUrl(String key) {
         try {
+            // 공개 URL이 설정되어 있으면 공개 엔드포인트 사용, 아니면 내부 엔드포인트 사용
+            String effectiveEndpoint = (publicUrl != null && !publicUrl.isEmpty()) ? publicUrl : endpoint;
+            
+            log.debug("Using endpoint for presigned URL: {}", effectiveEndpoint);
+            
             S3Presigner presigner = S3Presigner.builder()
-                    .endpointOverride(URI.create(endpoint))
+                    .endpointOverride(URI.create(effectiveEndpoint))
                     .region(software.amazon.awssdk.regions.Region.of(region))
                     .credentialsProvider(software.amazon.awssdk.auth.credentials.StaticCredentialsProvider.create(
                             software.amazon.awssdk.auth.credentials.AwsBasicCredentials.create(accessKey, secretKey)
@@ -127,12 +132,7 @@ public class S3Service {
             
             presigner.close();
 
-            // 공개 URL이 설정되어 있으면 내부 엔드포인트를 공개 엔드포인트로 치환
-            if (publicUrl != null && !publicUrl.isEmpty()) {
-                url = url.replace(endpoint, publicUrl);
-                log.debug("Replaced internal endpoint with public URL: {}", url);
-            }
-
+            log.debug("Generated presigned URL: {}", url);
             return url;
         } catch (Exception e) {
             log.error("Error generating presigned URL", e);

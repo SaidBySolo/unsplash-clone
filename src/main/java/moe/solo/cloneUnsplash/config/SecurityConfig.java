@@ -40,8 +40,6 @@ public class SecurityConfig {
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        // 정적 리소스 및 프론트엔드 허용
-                        .requestMatchers("/", "/index.html", "/assets/**", "/*.js", "/*.css", "/favicon.ico").permitAll()
                         // API 엔드포인트
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/photos/**").permitAll()
@@ -51,7 +49,10 @@ public class SecurityConfig {
                         .requestMatchers("/api/users/username/{username}").permitAll()
                         // Swagger
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
-                        .anyRequest().authenticated())
+                        // 인증이 필요한 API
+                        .requestMatchers("/api/**").authenticated()
+                        // 정적 리소스 및 SPA 라우팅 - 나머지 모든 경로 허용
+                        .anyRequest().permitAll())
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
