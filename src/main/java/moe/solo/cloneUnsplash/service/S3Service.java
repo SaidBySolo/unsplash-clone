@@ -11,10 +11,10 @@ import software.amazon.awssdk.services.s3.model.*;
 
 import jakarta.annotation.PostConstruct;
 import java.io.InputStream;
-import java.net.URI;
-import jakarta.annotation.PostConstruct;
-import java.io.InputStream;
-import java.util.UUID;or
+import java.util.UUID;
+
+@Service
+@RequiredArgsConstructor
 @Slf4j
 public class S3Service {
 
