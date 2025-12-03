@@ -1,0 +1,23 @@
+services:
+  postgres:
+    image: 'postgres:latest'
+    environment:
+      - 'POSTGRES_DB=unsplash_clone'
+      - 'POSTGRES_PASSWORD=postgres'
+      - 'POSTGRES_USER=postgres'
+    ports:
+      - '5432:5432'
+
+  seaweedfs-s3:
+    image: chrislusf/seaweedfs:latest
+    command: server -s3
+    ports:
+      - '8333:8333'
+    # volumes:
+    #   - seaweedfs-data:/data
+    environment:
+      - AWS_ACCESS_KEY_ID=admin
+      - AWS_SECRET_ACCESS_KEY=admin
+
+# volumes:
+#   seaweedfs-data:

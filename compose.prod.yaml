@@ -1,0 +1,106 @@
+services:
+  traefik:
+    image: traefik
+    container_name: traefik
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      CLOUDFLARE_EMAIL: <YOUR_CLOUDFLARE_EMAIL>
+      CLOUDFLARE_DNS_API_TOKEN: <YOUR_CLOUDFLARE_DNS_API_TOKEN>
+    networks:
+      - unsplash-network
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./letsencrypt:/letsencrypt
+      # - ./dynamic.yaml:/etc/traefik/dynamic/dynamic.yml:ro
+    command:
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      # - --providers.file.directory=/etc/traefik/dynamic
+      # - --providers.file.watch=true
+      - --certificatesresolvers.cfresolver.acme.dnschallenge.provider=cloudflare
+      - --certificatesresolvers.cfresolver.acme.email=<YOUR_CLOUDFLARE_EMAIL>
+      - --certificatesresolvers.cfresolver.acme.storage=/letsencrypt/acme.json
+      - --certificatesresolvers.cfresolver.acme.dnschallenge.delaybeforecheck=0
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-unsplash_clone}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - unsplash-network
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  seaweedfs-s3:
+    image: chrislusf/seaweedfs:latest
+    command: server -s3
+    ports:
+      - '8333:8333'
+    volumes:
+      - seaweedfs-data:/data
+    environment:
+      - AWS_ACCESS_KEY_ID=${S3_ACCESS_KEY:-admin}
+      - AWS_SECRET_ACCESS_KEY=${S3_SECRET_KEY}
+
+  app:
+    image: ghcr.io/SaidBySolo/unsplash-clone:latest
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-unsplash_clone}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-postgres}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      S3_ENDPOINT: http://seaweedfs-s3:8333
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-admin}
+      S3_SECRET_KEY: ${S3_SECRET_KEY}
+      S3_REGION: us-east-1
+      S3_PUBLIC_URL: https://s3.unsplash.example.com
+      JWT_SECRET: ${JWT_SECRET}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-https://unsplash.example.com}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      seaweedfs-s3:
+        condition: service_healthy
+    networks:
+      - unsplash-network
+    restart: unless-stopped
+    labels:
+      # HTTPS router
+      - "traefik.http.routers.unsplash.rule=Host(`unsplash.example.com`)"
+      - "traefik.http.routers.unsplash.entrypoints=websecure"
+      - "traefik.http.routers.unsplash.tls.certresolver=cfresolver"
+      - "traefik.http.services.unsplash.loadbalancer.server.port=8080"
+
+      # HTTP → HTTPS
+      - "traefik.http.routers.unsplash-http.rule=Host(`unsplash.example.com`)"
+      - "traefik.http.routers.unsplash-http.entrypoints=web"
+      - "traefik.http.routers.unsplash-http.middlewares=https-redirect"
+
+      # Middlewares
+      - "traefik.http.middlewares.https-redirect.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.redirect-to-root.redirectregex.regex=^https?://www\\.(.+)"
+      - "traefik.http.middlewares.redirect-to-root.redirectregex.replacement=https://$1"
+      - "traefik.http.middlewares.redirect-to-root.redirectregex.permanent=true"
+
+networks:
+  unsplash-network:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  seaweedfs-data:
