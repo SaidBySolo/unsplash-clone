@@ -8,18 +8,13 @@ import org.springframework.web.multipart.MultipartFile;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.*;
-import software.amazon.awssdk.services.s3.presigner.S3Presigner;
-import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
-import software.amazon.awssdk.services.s3.presigner.model.PresignedGetObjectRequest;
 
 import jakarta.annotation.PostConstruct;
 import java.io.InputStream;
 import java.net.URI;
-import java.time.Duration;
-import java.util.UUID;
-
-@Service
-@RequiredArgsConstructor
+import jakarta.annotation.PostConstruct;
+import java.io.InputStream;
+import java.util.UUID;or
 @Slf4j
 public class S3Service {
 
@@ -69,7 +64,7 @@ public class S3Service {
     }
 
     /**
-     * 파일 업로드
+     * 파일 업로드 (퍼블릭 읽기 권한)
      */
     public String uploadFile(MultipartFile file, String folder) {
         try {
@@ -81,11 +76,12 @@ public class S3Service {
             String filename = UUID.randomUUID().toString() + extension;
             String key = folder + "/" + filename;
 
-            // 파일 업로드
+            // 파일 업로드 (ACL: public-read)
             PutObjectRequest putObjectRequest = PutObjectRequest.builder()
                     .bucket(bucketName)
                     .key(key)
                     .contentType(file.getContentType())
+                    .acl(ObjectCannedACL.PUBLIC_READ)
                     .build();
 
             s3Client.putObject(putObjectRequest, 
@@ -100,44 +96,13 @@ public class S3Service {
     }
 
     /**
-     * 파일 다운로드 URL 생성 (presigned URL, 7일 유효)
+     * 파일 URL 생성 (퍼블릭 URL)
      */
     public String getFileUrl(String key) {
-        try {
-            // 공개 URL이 설정되어 있으면 공개 엔드포인트 사용, 아니면 내부 엔드포인트 사용
-            String effectiveEndpoint = (publicUrl != null && !publicUrl.isEmpty()) ? publicUrl : endpoint;
-            
-            log.debug("Using endpoint for presigned URL: {}", effectiveEndpoint);
-            
-            S3Presigner presigner = S3Presigner.builder()
-                    .endpointOverride(URI.create(effectiveEndpoint))
-                    .region(software.amazon.awssdk.regions.Region.of(region))
-                    .credentialsProvider(software.amazon.awssdk.auth.credentials.StaticCredentialsProvider.create(
-                            software.amazon.awssdk.auth.credentials.AwsBasicCredentials.create(accessKey, secretKey)
-                    ))
-                    .build();
-
-            GetObjectRequest getObjectRequest = GetObjectRequest.builder()
-                    .bucket(bucketName)
-                    .key(key)
-                    .build();
-
-            GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
-                    .signatureDuration(Duration.ofDays(7))
-                    .getObjectRequest(getObjectRequest)
-                    .build();
-
-            PresignedGetObjectRequest presignedRequest = presigner.presignGetObject(presignRequest);
-            String url = presignedRequest.url().toString();
-            
-            presigner.close();
-
-            log.debug("Generated presigned URL: {}", url);
-            return url;
-        } catch (Exception e) {
-            log.error("Error generating presigned URL", e);
-            throw new RuntimeException("Could not generate file URL", e);
-        }
+        String baseUrl = (publicUrl != null && !publicUrl.isEmpty()) ? publicUrl : endpoint;
+        String url = baseUrl + "/" + bucketName + "/" + key;
+        log.debug("Generated public URL: {}", url);
+        return url;
     }
 
     /**
