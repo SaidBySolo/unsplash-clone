@@ -76,12 +76,10 @@ public class S3Service {
             String filename = UUID.randomUUID().toString() + extension;
             String key = folder + "/" + filename;
 
-            // 파일 업로드 (ACL: public-read)
             PutObjectRequest putObjectRequest = PutObjectRequest.builder()
                     .bucket(bucketName)
                     .key(key)
                     .contentType(file.getContentType())
-                    .acl(ObjectCannedACL.PUBLIC_READ)
                     .build();
 
             s3Client.putObject(putObjectRequest, 
