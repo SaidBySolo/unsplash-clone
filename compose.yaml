@@ -10,11 +10,12 @@ services:
 
   seaweedfs-s3:
     image: chrislusf/seaweedfs:latest
-    command: server -s3
+    command: server -s3 -s3.config=/data/s3.config.json -s3.ip.bind=0.0.0.0
     ports:
       - '8333:8333'
-    # volumes:
-    #   - seaweedfs-data:/data
+    volumes:
+      - seaweedfs-data:/data
+      - ./s3.config.json:/data/s3.config.json:ro
     environment:
       - AWS_ACCESS_KEY_ID=admin
       - AWS_SECRET_ACCESS_KEY=admin
